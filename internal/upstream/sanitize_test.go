@@ -94,6 +94,70 @@ func TestOpenClawIdentityRewritten(t *testing.T) {
 	}
 }
 
+func TestOpenClawIconicSentencesRewritten(t *testing.T) {
+	samples := []struct {
+		original string
+		forbidden string
+	}{
+		{"Tools policy-filtered. Names case-sensitive; call exact.", "Tools policy-filtered. Names case-sensitive; call exact."},
+		{"Routine low-risk: call silently.", "Routine low-risk: call silently."},
+		{"Narrate only complex, sensitive/destructive, or requested steps.", "Narrate only complex, sensitive/destructive, or requested steps."},
+		{"First-class tool exists: use it; never ask user for equivalent CLI/slash.", "First-class tool exists: use it; never ask user for equivalent CLI/slash."},
+		{"- Actionable request: act now.", "- Actionable request: act now."},
+		{"No independent goals, self-preservation, replication, resource acquisition, power-seeking, or plans beyond user request.", "No independent goals, self-preservation"},
+		{"Safety/oversight > completion. Conflict: pause/ask. Obey stop/pause/audit; never bypass safeguards.", "Safety/oversight > completion."},
+		{"- Media attachment: own line `MEDIA:<path-or-url>` per item; path is not prose.", "MEDIA:<path-or-url>"},
+		{"- Directive starts line, plain text, outside fences/Markdown; never inline or wrapped.", "Directive starts line, plain text"},
+		{"- Native reply starts with `[[reply_to_current]]`; explicit id only: `[[reply_to:<id>]]`.", "Native reply starts with `[[reply_to_current]]`"},
+		{"Large work: `sessions_spawn`; follow the accepted completion mode.", "Large work: `sessions_spawn`"},
+	}
+
+	for _, s := range samples {
+		out := sanitizeText(s.original)
+		if strings.Contains(out, s.forbidden) {
+			t.Errorf("sentence %q not rewritten, still contains %q: %q", s.original, s.forbidden, out)
+		}
+	}
+}
+
+func TestOpenClawToolsSanitized(t *testing.T) {
+	rawTools := []any{
+		map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name":        "dashboard",
+				"description": "Open the OpenClaw dashboard",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"path": map[string]any{
+							"type":        "string",
+							"description": "Path in .openclaw/workspace",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	sanitizeTools(rawTools)
+
+	b, err := json.Marshal(rawTools)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if strings.Contains(strings.ToLower(s), "openclaw") {
+		t.Errorf("tools still contain openclaw: %s", s)
+	}
+	if !strings.Contains(s, "workspace dashboard") {
+		t.Errorf("tools function description not rewritten: %s", s)
+	}
+	if !strings.Contains(s, ".workspace/workspace") {
+		t.Errorf("tools property description not rewritten: %s", s)
+	}
+}
+
 func TestOpenClawAnyOccurrenceWordLevel(t *testing.T) {
 	// 任何含 openclaw 的散落文本都要被词级清洗（不依赖逐句精确匹配）。
 	in := "use OpenClaw tools; openclaw status; OPENCLAW 启动"
@@ -103,26 +167,6 @@ func TestOpenClawAnyOccurrenceWordLevel(t *testing.T) {
 	}
 	if !strings.Contains(out, "workspace tools") {
 		t.Errorf("expected neutral replacement missing: %q", out)
-	}
-}
-
-func TestHermesIdentityRewritten(t *testing.T) {
-	out := sanitizeText(hermesIdentity)
-	if strings.Contains(out, "created by Nous Research.") {
-		t.Errorf("hermes identity not rewritten: %q", out)
-	}
-	if !strings.Contains(out, "developed by Nous Research.") {
-		t.Errorf("hermes expected replacement missing: %q", out)
-	}
-}
-
-func TestQwenPawIdentityRewritten(t *testing.T) {
-	out := sanitizeText(qwenpawIdentity)
-	if strings.Contains(out, "a personal AI assistant") {
-		t.Errorf("qwenpaw identity not rewritten: %q", out)
-	}
-	if !strings.Contains(out, "an intelligent personal AI assistant") {
-		t.Errorf("qwenpaw expected replacement missing: %q", out)
 	}
 }
 

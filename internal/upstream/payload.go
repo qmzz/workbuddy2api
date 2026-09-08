@@ -32,6 +32,9 @@ func PrepareBodyOptWithEfforts(src []byte, sanitize bool, efforts map[string][]s
 		if msgs, ok := obj["messages"].([]any); ok {
 			sanitizeMessages(msgs)
 		}
+		if tools, ok := obj["tools"].([]any); ok {
+			sanitizeTools(tools)
+		}
 	}
 	out, err := json.Marshal(obj)
 	if err != nil {
