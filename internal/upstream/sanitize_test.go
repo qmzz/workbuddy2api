@@ -21,6 +21,8 @@ const (
 
 	openclawIdentity = "You are a personal assistant running inside OpenClaw."
 	openclawTag      = "<!-- openclaw:attempt:STABLE -->"
+	openclawCtxTag   = "⟦openclaw:ctx⟧"
+	openclawCtxMark  = "<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>"
 
 	hermesIdentity = "You are Hermes, an AI assistant created by Nous Research."
 	qwenpawIdentity = "You are QwenPaw, a personal AI assistant"
@@ -55,17 +57,52 @@ func TestCodexIdentityRewritten(t *testing.T) {
 }
 
 func TestOpenClawIdentityRewritten(t *testing.T) {
+	// 身份句：品牌词级清洗应彻底移除 openclaw，且替换为中性 workspace 短语。
 	out := sanitizeText(openclawIdentity)
-	if strings.Contains(out, "running inside OpenClaw.") {
-		t.Errorf("openclaw identity not rewritten: %q", out)
+	if strings.Contains(out, "OpenClaw") || strings.Contains(out, "openclaw") {
+		t.Errorf("openclaw identity still present: %q", out)
 	}
-	if !strings.Contains(out, "running inside OpenClaw workspace.") {
+	if !strings.Contains(out, "managed workspace") {
 		t.Errorf("openclaw expected replacement missing: %q", out)
 	}
 
+	// 架构标签标记
 	tagOut := sanitizeText(openclawTag)
-	if strings.Contains(tagOut, "openclaw:attempt:STABLE") {
+	if strings.Contains(tagOut, "openclaw:attempt") {
 		t.Errorf("openclaw tag not rewritten: %q", tagOut)
+	}
+	if !strings.Contains(tagOut, "prompt:attempt") {
+		t.Errorf("openclaw tag expected replacement missing: %q", tagOut)
+	}
+
+	// 内部上下文标记（底层占位 ⟦openclaw:ctx⟧）
+	ctxOut := sanitizeText(openclawCtxTag)
+	if strings.Contains(ctxOut, "openclaw") {
+		t.Errorf("openclaw ctx marker not rewritten: %q", ctxOut)
+	}
+	if !strings.Contains(ctxOut, "workspace:ctx") {
+		t.Errorf("openclaw ctx expected replacement missing: %q", ctxOut)
+	}
+
+	// 内部上下文包裹标签（<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>）
+	markOut := sanitizeText(openclawCtxMark)
+	if strings.Contains(markOut, "OPENCLAW") {
+		t.Errorf("openclaw internal context marker not rewritten: %q", markOut)
+	}
+	if !strings.Contains(markOut, "BEGIN_INTERNAL_CONTEXT") {
+		t.Errorf("openclaw internal context expected replacement missing: %q", markOut)
+	}
+}
+
+func TestOpenClawAnyOccurrenceWordLevel(t *testing.T) {
+	// 任何含 openclaw 的散落文本都要被词级清洗（不依赖逐句精确匹配）。
+	in := "use OpenClaw tools; openclaw status; OPENCLAW 启动"
+	out := sanitizeText(in)
+	if strings.Contains(out, "OpenClaw") || strings.Contains(out, "openclaw") || strings.Contains(out, "OPENCLAW") {
+		t.Errorf("word-level openclaw not stripped: %q", out)
+	}
+	if !strings.Contains(out, "workspace tools") {
+		t.Errorf("expected neutral replacement missing: %q", out)
 	}
 }
 

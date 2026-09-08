@@ -30,6 +30,10 @@ var sanitizeFeatures = []string{
 	// --- 3. OpenClaw ---
 	"running inside OpenClaw",
 	"openclaw:attempt",
+	"openclaw:ctx",
+	"BEGIN_OPENCLAW_INTERNAL_CONTEXT",
+	"END_OPENCLAW_INTERNAL_CONTEXT",
+	"OPENCLAW_INTERNAL_CONTEXT",
 
 	// --- 4. Hermes Agent ---
 	"You are Hermes",
@@ -85,12 +89,13 @@ var sanitizeRewrites = [][2]string{
 	},
 
 	// ==========================================
-	// 3. OpenClaw 架构指纹
+	// 3. OpenClaw 架构指纹（品牌词级清洗在 sanitizeText 尾部兜底）
 	// ==========================================
 	{
 		"You are a personal assistant running inside OpenClaw.",
-		"You are a personal assistant running inside OpenClaw workspace.",
+		"You are a personal assistant running inside a managed workspace.",
 	},
+	// 精确标记串先行替换（保留可读性的分隔符语义）
 	{
 		"<!-- openclaw:attempt:STABLE -->",
 		"<!-- prompt:attempt:STABLE -->",
@@ -106,6 +111,26 @@ var sanitizeRewrites = [][2]string{
 	{
 		"<!-- /openclaw:attempt:DYNAMIC -->",
 		"<!-- /prompt:attempt:DYNAMIC -->",
+	},
+	{
+		"<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>",
+		"<<<BEGIN_INTERNAL_CONTEXT>>>",
+	},
+	{
+		"<<<END_OPENCLAW_INTERNAL_CONTEXT>>>",
+		"<<<END_INTERNAL_CONTEXT>>>",
+	},
+	{
+		"BEGIN_OPENCLAW_INTERNAL_CONTEXT",
+		"BEGIN_INTERNAL_CONTEXT",
+	},
+	{
+		"END_OPENCLAW_INTERNAL_CONTEXT",
+		"END_INTERNAL_CONTEXT",
+	},
+	{
+		"⟦openclaw:ctx⟧",
+		"⟦workspace:ctx⟧",
 	},
 
 	// ==========================================
@@ -155,18 +180,31 @@ func sanitizeText(text string) string {
 			text = sanitizeKvRe.ReplaceAllString(text, "")
 		}
 	}
+	// 全量清洗：OpenClaw 品牌词（大小写不敏感）→ 中性词 workspace。
+	// 上游黑名单可能匹配任何含 openclaw 的子串，逐句改写不可穷举，词级替换兜底所有变体。
+	if openClawWordRe.MatchString(text) {
+		text = openClawWordRe.ReplaceAllString(text, "workspace")
+	}
 	return strings.TrimSpace(text)
 }
 
+// openClawWordRe 词级清洗：命中任意大小写 openclaw 即进入替换。
+// 不用 \b 边界：BEGIN_OPENCLAW_INTERNAL_CONTEXT 等下划线相连形式在字母左右都是词字符，
+// \b 匹配不到，必须裸匹配 openclaw 才能覆盖全部变体。
+var openClawWordRe = regexp.MustCompile(`(?i)openclaw`)
+
 // hasFingerprint 特征预检：先走 strings.Contains 快速路径（零分配）；
-// header 键名有大小写变体（X-Anthropic-...），快速路径漏掉时再落正则（(?i)）兜底。
+// header 键名/品牌词有大小写变体，快速路径漏掉时再落正则（(?i)）兜底。
 func hasFingerprint(text string) bool {
 	for _, f := range sanitizeFeatures {
 		if strings.Contains(text, f) {
 			return true
 		}
 	}
-	return sanitizeHdrRe.MatchString(text)
+	if sanitizeHdrRe.MatchString(text) {
+		return true
+	}
+	return openClawWordRe.MatchString(text)
 }
 
 // sanitizeContent 兼容字符串与多模态数组；只动 text part，image 等 part 不动。
