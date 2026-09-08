@@ -15,6 +15,15 @@ const (
 	ccIdentity = "You are Claude Code, Anthropic's official CLI for Claude."
 	ccBranch   = "Main branch (you will usually use this for PRs)"
 	ccHeader   = "x-anthropic-billing-header: cc_version=1.0; cc_entrypoint=cli;"
+
+	codexIdentity1 = "You are Codex, an OpenAI general-purpose agentic assistant that helps the user complete tasks across coding, browsing, apps, documents, research, and other digital workflows."
+	codexIdentity2 = "You are Codex, a coding agent based on GPT-5."
+
+	openclawIdentity = "You are a personal assistant running inside OpenClaw."
+	openclawTag      = "<!-- openclaw:attempt:STABLE -->"
+
+	hermesIdentity = "You are Hermes, an AI assistant created by Nous Research."
+	qwenpawIdentity = "You are QwenPaw, a personal AI assistant"
 )
 
 func TestIdentityRewritten(t *testing.T) {
@@ -24,6 +33,59 @@ func TestIdentityRewritten(t *testing.T) {
 	}
 	if strings.Contains(out, ccIdentity) {
 		t.Errorf("original identity still present: %q", out)
+	}
+}
+
+func TestCodexIdentityRewritten(t *testing.T) {
+	out1 := sanitizeText(codexIdentity1)
+	if strings.Contains(out1, "an OpenAI general-purpose") {
+		t.Errorf("codex1 identity not rewritten: %q", out1)
+	}
+	if !strings.Contains(out1, "an AI general-purpose") {
+		t.Errorf("codex1 expected replacement missing: %q", out1)
+	}
+
+	out2 := sanitizeText(codexIdentity2)
+	if strings.Contains(out2, "coding agent based on GPT-5.") {
+		t.Errorf("codex2 identity not rewritten: %q", out2)
+	}
+	if !strings.Contains(out2, "coding assistant based on GPT-5.") {
+		t.Errorf("codex2 expected replacement missing: %q", out2)
+	}
+}
+
+func TestOpenClawIdentityRewritten(t *testing.T) {
+	out := sanitizeText(openclawIdentity)
+	if strings.Contains(out, "running inside OpenClaw.") {
+		t.Errorf("openclaw identity not rewritten: %q", out)
+	}
+	if !strings.Contains(out, "running inside OpenClaw workspace.") {
+		t.Errorf("openclaw expected replacement missing: %q", out)
+	}
+
+	tagOut := sanitizeText(openclawTag)
+	if strings.Contains(tagOut, "openclaw:attempt:STABLE") {
+		t.Errorf("openclaw tag not rewritten: %q", tagOut)
+	}
+}
+
+func TestHermesIdentityRewritten(t *testing.T) {
+	out := sanitizeText(hermesIdentity)
+	if strings.Contains(out, "created by Nous Research.") {
+		t.Errorf("hermes identity not rewritten: %q", out)
+	}
+	if !strings.Contains(out, "developed by Nous Research.") {
+		t.Errorf("hermes expected replacement missing: %q", out)
+	}
+}
+
+func TestQwenPawIdentityRewritten(t *testing.T) {
+	out := sanitizeText(qwenpawIdentity)
+	if strings.Contains(out, "a personal AI assistant") {
+		t.Errorf("qwenpaw identity not rewritten: %q", out)
+	}
+	if !strings.Contains(out, "an intelligent personal AI assistant") {
+		t.Errorf("qwenpaw expected replacement missing: %q", out)
 	}
 }
 

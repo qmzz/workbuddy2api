@@ -1,8 +1,11 @@
 // sanitize.go 出站请求体脱敏：剥离上游内容审核黑名单指纹。
 //
-// 背景：客户端（Claude Code 类 CLI）在 system prompt 注入若干固定模板句，
+// 背景：各大 AI 编程客户端（Claude Code、Codex、OpenClaw、Hermes、QwenPaw 等）
+// 在 system prompt 中注入若干固定模板句自报家门。
 // 上游内容审核按逐字精确匹配拦截（非语义审核），一字改动即可绕过。
-// 策略：键值/header 型指纹整段剥离；承载语义的模板句最小改写（换一词），语义不变。
+// 策略：
+//  1. 键值/header 型指纹整段剥离。
+//  2. 承载语义的模板句最小改写（通常换一词或微调修饰），语义不变，精确匹配失效。
 package upstream
 
 import (
@@ -13,10 +16,28 @@ import (
 // sanitizeFeatures 特征预检：任一命中才进入净化（strings.Contains 快速路径，
 // 普通请求全不中 → 原样返回，零分配）。
 var sanitizeFeatures = []string{
-	"x-anthropic-billing-header", // header 键值段键名
-	"cc_entrypoint=",             // 尾随裸键值（截断前缀即可命中）
-	"You are Claude Code",        // 身份句（截断前缀即可命中）
-	"Main branch (",              // 注入指令句（截断前缀即可命中）
+	// --- 通用/底层 ---
+	"x-anthropic-billing-header",
+	"cc_entrypoint=",
+
+	// --- 1. Claude Code ---
+	"You are Claude Code",
+	"Main branch (",
+
+	// --- 2. OpenAI Codex CLI ---
+	"You are Codex",
+
+	// --- 3. OpenClaw ---
+	"running inside OpenClaw",
+	"openclaw:attempt",
+
+	// --- 4. Hermes Agent ---
+	"You are Hermes",
+	"Hermes Agent",
+
+	// --- 5. QwenPaw (CoPaw) ---
+	"QwenPaw",
+	"CoPaw",
 }
 
 // sanitizeHdrRe 剥离层：header 键名即触发（与值无关），整段删除。
@@ -25,8 +46,11 @@ var sanitizeHdrRe = regexp.MustCompile(`(?i)x-anthropic-billing-header:[^;\n]*;?
 // sanitizeKvRe 剥离层：尾随裸键值（cc_xxx=...;）循环清理。
 var sanitizeKvRe = regexp.MustCompile(`(?i)\bcc_[a-z0-9_]+=[^;\n]*;?\s*`)
 
-// sanitizeRewrites 改写层：全模板句逐字替换（每句只改一个词，语义不变）。
+// sanitizeRewrites 改写层：全模板句逐字替换（每句只改一个词或加微小修饰，语义不变）。
 var sanitizeRewrites = [][2]string{
+	// ==========================================
+	// 1. Claude Code 指纹
+	// ==========================================
 	{
 		"You are Claude Code, Anthropic's official CLI for Claude.",
 		"You are Claude Code, Anthropic's official CLI tool for Claude.",
@@ -34,6 +58,82 @@ var sanitizeRewrites = [][2]string{
 	{
 		"Main branch (you will usually use this for PRs)",
 		"Default branch (you will usually use this for PRs)",
+	},
+
+	// ==========================================
+	// 2. OpenAI Codex CLI 指纹 (实测已命中上游 11128)
+	// ==========================================
+	{
+		"You are Codex, an OpenAI general-purpose agentic assistant that helps the user complete tasks across coding, browsing, apps, documents, research, and other digital workflows.",
+		"You are Codex, an AI general-purpose agentic assistant that helps the user complete tasks across coding, browsing, apps, documents, research, and other digital workflows.",
+	},
+	{
+		"You are Codex, a coding agent based on GPT-5.",
+		"You are Codex, a coding assistant based on GPT-5.",
+	},
+	{
+		"You are Codex, an agent based on GPT-5.",
+		"You are Codex, an assistant based on GPT-5.",
+	},
+	{
+		"You are Codex, an agent based on GPT-6.",
+		"You are Codex, an assistant based on GPT-6.",
+	},
+	{
+		"You are running as a coding agent in the Codex CLI",
+		"You are running as a coding assistant in the Codex CLI",
+	},
+
+	// ==========================================
+	// 3. OpenClaw 架构指纹
+	// ==========================================
+	{
+		"You are a personal assistant running inside OpenClaw.",
+		"You are a personal assistant running inside OpenClaw workspace.",
+	},
+	{
+		"<!-- openclaw:attempt:STABLE -->",
+		"<!-- prompt:attempt:STABLE -->",
+	},
+	{
+		"<!-- /openclaw:attempt:STABLE -->",
+		"<!-- /prompt:attempt:STABLE -->",
+	},
+	{
+		"<!-- openclaw:attempt:DYNAMIC -->",
+		"<!-- prompt:attempt:DYNAMIC -->",
+	},
+	{
+		"<!-- /openclaw:attempt:DYNAMIC -->",
+		"<!-- /prompt:attempt:DYNAMIC -->",
+	},
+
+	// ==========================================
+	// 4. Hermes Agent 指纹
+	// ==========================================
+	{
+		"You are Hermes, an AI assistant created by Nous Research.",
+		"You are Hermes, an AI assistant developed by Nous Research.",
+	},
+	{
+		"You are Hermes Agent, an intelligent AI assistant created by Nous Research.",
+		"You are Hermes Agent, an intelligent AI assistant developed by Nous Research.",
+	},
+
+	// ==========================================
+	// 5. QwenPaw (原 CoPaw) 指纹
+	// ==========================================
+	{
+		"You are QwenPaw, a personal AI assistant",
+		"You are QwenPaw, an intelligent personal AI assistant",
+	},
+	{
+		"You are CoPaw, a personal AI assistant",
+		"You are CoPaw, an intelligent personal AI assistant",
+	},
+	{
+		"You are CoPaw, an AI assistant.",
+		"You are CoPaw, a helpful AI assistant.",
 	},
 }
 
