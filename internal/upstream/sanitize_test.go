@@ -24,7 +24,7 @@ const (
 	openclawCtxTag   = "⟦openclaw:ctx⟧"
 	openclawCtxMark  = "<<<BEGIN_OPENCLAW_INTERNAL_CONTEXT>>>"
 
-	hermesIdentity = "You are Hermes, an AI assistant created by Nous Research."
+	hermesIdentity  = "You are Hermes, an AI assistant created by Nous Research."
 	qwenpawIdentity = "You are QwenPaw, a personal AI assistant"
 )
 
@@ -96,7 +96,7 @@ func TestOpenClawIdentityRewritten(t *testing.T) {
 
 func TestOpenClawIconicSentencesRewritten(t *testing.T) {
 	samples := []struct {
-		original string
+		original  string
 		forbidden string
 	}{
 		{"Tools policy-filtered. Names case-sensitive; call exact.", "Tools policy-filtered. Names case-sensitive; call exact."},
@@ -365,4 +365,16 @@ func TestChatStreamWireBodySanitizeDisabled(t *testing.T) {
 func newTestUpstream(t *testing.T, h http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(h)
+}
+
+// TestAllRewriteSourcesPassGate 防止改写规则被预检门挡住而成为死代码。
+// sanitizeText 先做 hasFingerprint 预检，不中即原样返回；因此每条改写规则的
+// 源句都必须能命中 sanitizeFeatures（或 header/workspace 正则），否则该规则
+// 永远不会执行。历史上 "- Directive starts line..." 一条即因漏配预检而失效。
+func TestAllRewriteSourcesPassGate(t *testing.T) {
+	for i, rw := range sanitizeRewrites {
+		if !hasFingerprint(rw[0]) {
+			t.Errorf("rewrite[%d] source unreachable: gate never matches %.60q", i, rw[0])
+		}
+	}
 }

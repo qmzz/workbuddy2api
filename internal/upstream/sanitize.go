@@ -56,6 +56,9 @@ var sanitizeFeatures = []string{
 	// --- 6. QwenPaw (CoPaw) ---
 	"QwenPaw",
 	"CoPaw",
+	// --- 7. rewrite-source gate coverage (guarded by TestAllRewriteSourcesPassGate) ---
+	"You are running as a coding agent in",
+	"- Directive starts line, plain text,",
 }
 
 // sanitizeHdrRe 剥离层：header 键名即触发（与值无关），整段删除。
